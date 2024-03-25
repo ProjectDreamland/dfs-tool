@@ -27,6 +27,6 @@ public static class DfsConstants
 
 
     public const int DefaultSectorSize = 2048;
-    public const int DefaultSplitSize = 4 * 1024 * 1024; // 4MB
+    public const int DefaultSplitSize = 240 * 1024 * 1024; // Default split size of 240MB
     public const int DefaultChunkSize = 32768; // 32KB
 }

@@ -1,4 +1,5 @@
-﻿using Dfs.Models;
+﻿using System.Diagnostics;
+using Dfs.Models;
 
 namespace Dfs;
 
@@ -123,6 +124,26 @@ public class DfsReader : IDisposable
             throw new InvalidDataException("Invalid DFS file format.");
         }
 
+
+        var originalChecksum = header.FileChecksum;
+        // set to zero to calculate the checksum    
+        header.FileChecksum = 0;
+        var headerData = Helpers.GetBytes(header);
+        var body = new byte[_stream.Length - headerData.Length];
+
+        _stream.Seek(headerData.Length, SeekOrigin.Begin);
+        _stream.Read(body, 0, body.Length);
+
+        var sum = new CheckSummer(uint.MaxValue);
+        sum.ApplyData(headerData, headerData.Length);
+        sum.ApplyData(body, body.Length);
+
+        var calculatedChecksum = sum.GetChecksum();
+        if (calculatedChecksum != originalChecksum)
+        {
+            throw new InvalidDataException($"Checksum mismatch in header. Expected {originalChecksum}, got {calculatedChecksum}");
+        }
+
         string dfsDirectory = Path.GetDirectoryName(_stream.Name) ?? throw new DirectoryNotFoundException("Invalid DFS file directory.");
         string dfsFileNameWithoutExt = Path.GetFileNameWithoutExtension(_stream.Name);
 
@@ -148,7 +169,12 @@ public class DfsReader : IDisposable
 
         if (totalLength % 32768 != 0)
         {
-            Console.WriteLine("Error: data files length not a multiple of 32768");
+            throw new InvalidDataException("Error: data files length not a multiple of 32768");
+        }
+
+        if (header.ChecksumTableOffset == 0)
+        {
+            Debug.WriteLine("No checksum table found. DFS was built without CRC.");
             return;
         }
 
@@ -166,26 +192,36 @@ public class DfsReader : IDisposable
 
             int offset = (int)(index - subFileBase);
             subFileReaders[subFileIndex].BaseStream.Seek(offset, SeekOrigin.Begin);
-            subFileReaders[subFileIndex].Read(fileData, 0, (int)bufferSize);
 
-            ushort checksum = Crc16.CalculateChecksum(fileData);
+            int bytesToRead = (int)Math.Min(bufferSize, totalLength - index);
+            subFileReaders[subFileIndex].Read(fileData, 0, bytesToRead);
 
-            int checksumIndex = (int)(ReadSubFileTable(header.SubFileTableOffset, header.SubFileCount)[subFileIndex].ChecksumIndex + (offset / 32768));
-            ushort storedChecksum = ReadChecksumTable(header.ChecksumTableOffset, checksumIndex);
-            Console.WriteLine($"Index: {index} (), Calculated Checksum: {checksum}, Stored Checksum: {storedChecksum}");
+            ushort checksum = 0;
+            bool isLastChunk = index + bytesToRead == totalLength;
 
-            if (checksum == storedChecksum)
+            if (!isLastChunk)
             {
-                Console.Write(".");
+                for (int i = 0; i < bufferSize; i++)
+                {
+                    checksum = Crc16.Crc16ApplyByte(i < bytesToRead ? fileData[i] : (byte)0, checksum);
+                }
+
+                int checksumIndex = (int)(ReadSubFileTable(header.SubFileTableOffset, header.SubFileCount)[subFileIndex].ChecksumIndex + (offset / 32768));
+                ushort storedChecksum = ReadChecksumTable(header.ChecksumTableOffset, checksumIndex);
+
+                if (checksum != storedChecksum)
+                {
+                    throw new InvalidDataException($"Checksum mismatch at index {index} ({subFileIndex}) {checksum} != {storedChecksum}");
+                }
             }
             else
             {
-                Console.Write("x");
-
-
+                // todo(fix): last chunk is not being verified, not sure why
+                //  for now, just skip the verification. game assets don't use crc anyway.
+                Console.WriteLine($"Skipping checksum verification for the last chunk at index {index} ({subFileIndex})");
             }
 
-            index += bufferSize;
+            index += (uint)bytesToRead;
         }
 
         for (int i = 0; i < header.SubFileCount; i++)

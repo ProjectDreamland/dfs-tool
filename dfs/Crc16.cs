@@ -36,21 +36,21 @@ public class Crc16
     0xEF1F, 0xFF3E, 0xCF5D, 0xDF7C, 0xAF9B, 0xBFBA, 0x8FD9, 0x9FF8,
     0x6E17, 0x7E36, 0x4E55, 0x5E74, 0x2E93, 0x3EB2, 0x0ED1, 0x1EF0
 ];
-    private static ushort Crc16ApplyByte(byte value, ushort crc)
+    public static ushort Crc16ApplyByte(byte value, ushort crc)
     {
         return (ushort)((crc << 8) ^ Table[((crc >> 8) ^ value) & 0xFF]);
     }
 
     public static uint CalculateChecksum(Stream stream)
     {
-        var checksum = 0u;
+        ushort checksum = 0;
         var buffer = new byte[4096];
         int bytesRead;
         while ((bytesRead = stream.Read(buffer, 0, buffer.Length)) > 0)
         {
             for (int i = 0; i < bytesRead; i++)
             {
-                checksum = (checksum << 8) ^ Table[((checksum >> 24) ^ buffer[i]) & 0xFF];
+                checksum = Crc16ApplyByte(buffer[i], checksum);
             }
         }
         return checksum;
