@@ -1,53 +1,133 @@
-﻿// See https://aka.ms/new-console-template for more information
+﻿using System;
+using System.IO;
 using System.Security.Cryptography;
 using Dfs;
 
-Console.WriteLine("Hello, World!");
-
-const string input = "/Users/andrew/games/drive_c/Program Files (x86)/Midway Home Entertainment/AREA-51/AUDIO/MUSIC.DFS";
-const string extractPath = "/Users/andrew/projects/dfs-tool/file-test";
-const string roundtripPath = "/Users/andrew/projects/dfs-tool/roundtrip-test";
-const string outputDfs = "/Users/andrew/projects/dfs-tool/dfs/MUSIC.DFS";
-
-// Extract the original DFS file
-using var reader = new DfsReader(File.OpenRead(input));
-
-reader.Verify();
-
-reader.Extract(extractPath);
-
-
-// Write the extracted files to a new DFS file
-string[] sectorAligned = [".AUDIOPKG"];
-Console.WriteLine("Writing DFS file...");
-if (File.Exists(outputDfs))
+if (args.Length == 0 || args[0] == "help")
 {
-    File.Delete(outputDfs);
-    if (Path.ChangeExtension(outputDfs, ".000") is string splitFile && File.Exists(splitFile))
+    PrintHelp();
+    return;
+}
+
+var command = args[0];
+if (string.IsNullOrEmpty(command))
+{
+    Console.Error.WriteLine("Please provide a command");
+    return;
+}
+
+bool result = command switch
+{
+    "create" => CreateCommand(args),
+    "extract" => ExtractCommand(args),
+    "verify" => VerifyCommand(args),
+    "list" => ListCommand(args),
+    _ => throw new NotImplementedException($"Command {command} not implemented")
+};
+
+Environment.Exit(result ? 0 : 1);
+
+static void PrintHelp()
+{
+    Console.WriteLine("Usage: dfs <command> [options]");
+    Console.WriteLine("Commands:");
+    Console.WriteLine("  create <inputDir> <outputFileName> [--crc]    Creates a DFS file from the specified directory with optional CRC.");
+    Console.WriteLine("  extract <inputFile> <extractPath>             Extracts files from the specified DFS file to the specified path.");
+    Console.WriteLine("  verify <inputFile>                            Verifies the integrity of the specified DFS file.");
+    Console.WriteLine("  list <inputFile>                              Lists the contents of the specified DFS file.");
+    Console.WriteLine("  help                                          Displays this help text.");
+}
+
+static bool CreateCommand(string[] args)
+{
+    string[] sectorAligned = { ".AUDIOPKG" };
+
+    var inputDir = args.Length > 1 ? args[1] : null;
+    if (string.IsNullOrEmpty(inputDir))
     {
-        File.Delete(splitFile);
+        Console.Error.WriteLine("Please provide a directory to create a DFS file from");
+        return false;
+    }
+    if (!Directory.Exists(inputDir))
+    {
+        Console.Error.WriteLine($"Directory {inputDir} does not exist");
+        return false;
+    }
+    var outputFileName = args.Length > 2 ? args[2] : null;
+    if (string.IsNullOrEmpty(outputFileName))
+    {
+        Console.Error.WriteLine("Please provide a filename for the DFS file");
+        return false;
+    }
+
+    bool enableCrc = args.Length > 3 && args[3] == "--crc";
+    Console.WriteLine($"Creating DFS file {outputFileName} from {inputDir} with {(enableCrc ? "CRC" : "no CRC")}...");
+    if (File.Exists(outputFileName))
+    {
+        File.Delete(outputFileName);
+        if (Path.ChangeExtension(outputFileName, ".000") is string splitFile && File.Exists(splitFile))
+        {
+            File.Delete(splitFile);
+        }
+    }
+    var sourceFiles = Directory.GetFiles(inputDir, "*", SearchOption.AllDirectories);
+    using var writer = new DfsWriter(outputFileName, sourceFiles, sectorAligned, enableCrc: enableCrc);
+    writer.Write();
+    return true;
+}
+
+static bool ExtractCommand(string[] args)
+{
+    var input = args.Length > 1 ? args[1] : null;
+    if (string.IsNullOrEmpty(input))
+    {
+        Console.Error.WriteLine("Please provide a DFS file to read");
+        return false;
+    }
+    var extractPath = args.Length > 2 ? args[2] : null;
+    if (string.IsNullOrEmpty(extractPath))
+    {
+        Console.Error.WriteLine("Please provide a path to extract the files to");
+        return false;
+    }
+    using var reader = new DfsReader(File.OpenRead(input));
+    reader.Extract(extractPath);
+    return true;
+}
+
+static bool VerifyCommand(string[] args)
+{
+    var input = args.Length > 1 ? args[1] : null;
+    if (string.IsNullOrEmpty(input))
+    {
+        Console.Error.WriteLine("Please provide a DFS file to read");
+        return false;
+    }
+    using var reader = new DfsReader(File.OpenRead(input));
+    try
+    {
+        reader.Verify();
+        return true;
+    }
+    catch (Exception e)
+    {
+        Console.Error.WriteLine(e.Message);
+        return false;
     }
 }
-var sourceFiles = Directory.GetFiles(extractPath, "*", SearchOption.AllDirectories);
-using var writer = new DfsWriter(outputDfs, sourceFiles, sectorAligned);
-writer.Write();
 
-// Read the newly written DFS file
-
-using var reader2 = new DfsReader(File.OpenRead(outputDfs));
-Console.WriteLine("Reading DFS file...");
-
-reader2.Verify();
-
-reader2.Extract(roundtripPath);
-
-var extractedFiles = Directory.GetFiles(roundtripPath, "*", SearchOption.AllDirectories);
-
-// ensure they have the exact same file structure
-
-if (sourceFiles.Length != extractedFiles.Length)
+static bool ListCommand(string[] args)
 {
-    Console.WriteLine("Mismatched number of files");
+    var input = args.Length > 1 ? args[1] : null;
+    if (string.IsNullOrEmpty(input))
+    {
+        Console.Error.WriteLine("Please provide a DFS file to read");
+        return false;
+    }
+    using var reader = new DfsReader(File.OpenRead(input));
+    foreach (var file in reader.EnumerateFiles())
+    {
+        Console.WriteLine(file);
+    }
+    return true;
 }
-
-// Clean up the extracted files
