@@ -29,4 +29,13 @@ dotnet build
 
 
 ## Usage
-TODO
+
+```bash
+Usage: dfs <command> [options]
+Commands:
+  create <inputDir> <outputFileName> [--crc]    Creates a DFS file from the specified directory with optional CRC.
+  extract <inputFile> <extractPath>             Extracts files from the specified DFS file to the specified path.
+  verify <inputFile>                            Verifies the integrity of the specified DFS file.
+  list <inputFile>                              Lists the contents of the specified DFS file.
+  help                                          Displays this help text.
+```
