@@ -1,7 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Security.Cryptography;
-using Dfs;
+using DfsLib;
 
 if (args.Length == 0 || args[0] == "help")
 {

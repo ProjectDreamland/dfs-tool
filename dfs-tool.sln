@@ -3,7 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.5.002.0
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "dfs", "dfs\dfs.csproj", "{0397780F-5C49-4AC2-9815-BA5D3823FF61}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "dfslib", "dfslib\dfslib.csproj", "{4193C0B7-268B-44CB-9213-1F7E98AE5614}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "dfs", "dfs\dfs.csproj", "{AB64DDED-8372-452E-9794-F9B9E703EB19}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -11,15 +13,19 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{0397780F-5C49-4AC2-9815-BA5D3823FF61}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{0397780F-5C49-4AC2-9815-BA5D3823FF61}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{0397780F-5C49-4AC2-9815-BA5D3823FF61}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{0397780F-5C49-4AC2-9815-BA5D3823FF61}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4193C0B7-268B-44CB-9213-1F7E98AE5614}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4193C0B7-268B-44CB-9213-1F7E98AE5614}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4193C0B7-268B-44CB-9213-1F7E98AE5614}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4193C0B7-268B-44CB-9213-1F7E98AE5614}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AB64DDED-8372-452E-9794-F9B9E703EB19}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AB64DDED-8372-452E-9794-F9B9E703EB19}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AB64DDED-8372-452E-9794-F9B9E703EB19}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AB64DDED-8372-452E-9794-F9B9E703EB19}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
-		SolutionGuid = {F88B27DB-ECB2-4984-BF9C-17E2465C07D5}
+		SolutionGuid = {B9B12C6F-10F4-4D7C-A443-C7C7C3BA6F1E}
 	EndGlobalSection
 EndGlobal

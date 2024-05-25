@@ -1,9 +1,9 @@
-﻿namespace Dfs;
+﻿namespace DfsLib;
 
 /// <summary>
 /// Provides constant values for the DFS filesystem.
 /// </summary>
-public static class DfsConstants
+internal static class DfsConstants
 {
     /// <summary>
     /// The magic number used to identify the DFS file.

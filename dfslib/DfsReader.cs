@@ -1,7 +1,7 @@
 ﻿using System.Diagnostics;
-using Dfs.Models;
+using DfsLib.Models;
 
-namespace Dfs;
+namespace DfsLib;
 
 public class DfsReader : IDisposable
 {

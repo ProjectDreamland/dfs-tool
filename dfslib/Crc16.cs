@@ -1,6 +1,6 @@
-﻿namespace Dfs;
+﻿namespace DfsLib;
 
-public class Crc16
+internal class Crc16
 {
     public static readonly ushort[] Table = [
     0x0000, 0x1021, 0x2042, 0x3063, 0x4084, 0x50A5, 0x60C6, 0x70E7,

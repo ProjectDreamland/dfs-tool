@@ -1,9 +1,10 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
-using Dfs.Models;
+using System.Diagnostics;
+using DfsLib.Models;
 
-namespace Dfs;
+namespace DfsLib;
 
 public class DfsWriter : IDisposable
 {

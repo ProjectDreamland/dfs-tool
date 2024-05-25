@@ -1,7 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace Dfs.Models;
-
+namespace DfsLib.Models;
 /// <summary>
 /// Represents the header of a DFS file.
 /// </summary>

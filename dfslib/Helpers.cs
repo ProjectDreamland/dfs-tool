@@ -1,8 +1,8 @@
 using System.Runtime.InteropServices;
 
-namespace Dfs;
+namespace DfsLib;
 
-public static class Helpers
+internal static class Helpers
 {
     public static byte[] GetBytes<T>(T str) where T : struct
     {

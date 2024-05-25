@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace Dfs.Models;
+namespace DfsLib.Models;
 
 /// <summary>
 /// Represents a file entry in the DFS filesystem.

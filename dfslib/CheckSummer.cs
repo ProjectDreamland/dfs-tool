@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 
 
-namespace Dfs;
+namespace DfsLib;
 
-public class CheckSummer
+internal class CheckSummer
 {
     private List<ushort> _checksums;
     private ushort _checksum;
