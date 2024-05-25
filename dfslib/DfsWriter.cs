@@ -1,12 +1,14 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
-using System.Diagnostics;
 using DfsLib.Models;
 
 namespace DfsLib;
 
-public class DfsWriter : IDisposable
+/// <summary>
+/// Provides functionality to write files to a DFS archive.
+/// </summary>
+public sealed class DfsWriter : IDisposable
 {
     private readonly string _outputPath;
     private readonly IEnumerable<string> _filePaths;
@@ -27,6 +29,16 @@ public class DfsWriter : IDisposable
 
     private readonly bool _enableCrc;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DfsWriter"/> class.
+    /// </summary>
+    /// <param name="outputPath">The output path for the DFS archive.</param>
+    /// <param name="filePaths">The collection of file paths to include in the DFS archive.</param>
+    /// <param name="sectorAlignedExtensions">The collection of file extensions that should be sector-aligned.</param>
+    /// <param name="sectorSize">The sector size to use for the DFS archive.</param>
+    /// <param name="splitSize">The split size to use for the DFS archive.</param>
+    /// <param name="chunkSize">The chunk size to use for the DFS archive.</param>
+    /// <param name="enableCrc">Whether to enable CRC checksums for the DFS archive.</param>
     public DfsWriter(string outputPath, IEnumerable<string> filePaths, IEnumerable<string> sectorAlignedExtensions, uint sectorSize = DfsConstants.DefaultSectorSize, uint splitSize = DfsConstants.DefaultSplitSize, uint chunkSize = DfsConstants.DefaultChunkSize, bool enableCrc = false)
     {
         _outputPath = outputPath;
@@ -51,6 +63,9 @@ public class DfsWriter : IDisposable
         Debug.Assert((splitSize % sectorSize) == 0);
     }
 
+    /// <summary>
+    /// Writes the DFS archive to the output path.
+    /// </summary>
     public void Write()
     {
         _checkSummer.Init(_chunkSize);
@@ -126,11 +141,7 @@ public class DfsWriter : IDisposable
                         Pad(dataFileStream, bytesToPadChunk);
                         dataPosition += bytesToPadChunk;
 
-                        _subFileEntries.Add(new DfsSubFileEntry
-                        {
-                            SubFileOffset = (uint)dataPosition,
-                            ChecksumIndex = (uint)(_enableCrc ? _checksumTable.Count : 0)
-                        });
+                        _subFileEntries.Add(new DfsSubFileEntry((uint)dataPosition, (uint)(_enableCrc ? _checksumTable.Count : 0)));
 
 
                         dataFileStream.Dispose();
@@ -163,15 +174,14 @@ public class DfsWriter : IDisposable
                 Debug.Assert(extensionIndex >= 0 && extensionIndex < ushort.MaxValue);
 
                 // Add dfs_file record
-                var dfsFileEntry = new DfsFileEntry
-                {
-                    FileNamePart1Offset = (uint)fileNamePart1Index,
-                    FileNamePart2Offset = (uint)fileNamePart2Index,
-                    PathNameOffset = (uint)pathIndex,
-                    ExtensionOffset = (uint)extensionIndex,
-                    DataOffset = (uint)dataPosition,
-                    FileLength = (uint)fileLength
-                };
+                var dfsFileEntry = new DfsFileEntry(
+                    (uint)fileNamePart1Index,
+                    (uint)fileNamePart2Index,
+                    (uint)pathIndex,
+                    (uint)extensionIndex,
+                    (uint)dataPosition,
+                    (uint)fileLength
+                );
                 _fileEntries.Add(dfsFileEntry);
 
                 // Update number of files output
@@ -201,11 +211,7 @@ public class DfsWriter : IDisposable
             dataPosition += bytesToPad;
             _currentDataFileOffset += bytesToPad;
 
-            _subFileEntries.Add(new DfsSubFileEntry
-            {
-                SubFileOffset = (uint)dataPosition,
-                ChecksumIndex = (uint)(_enableCrc ? _checksumTable.Count : 0)
-            });
+            _subFileEntries.Add(new DfsSubFileEntry((uint)dataPosition, (uint)(_enableCrc ? _checksumTable.Count : 0)));
 
             dataFileStream.Dispose();
 

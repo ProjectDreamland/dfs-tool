@@ -5,7 +5,7 @@ namespace DfsLib.Models;
 /// Represents the header of a DFS file.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-public struct DfsHeader
+internal struct DfsHeader
 {
     /// <summary>
     /// Magic number to identify the file.

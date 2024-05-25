@@ -1,3 +1,3 @@
 ﻿namespace DfsLib.Models;
 
-public record DfsFileInfo(string FileName, string FilePath, uint FileSize);
+public sealed record DfsFileInfo(string FileName, string FilePath, uint FileSize);
