@@ -97,9 +97,33 @@ public sealed class DfsWriter : IDisposable
             // Assert that currentFile.Path is not empty
             Debug.Assert(!string.IsNullOrEmpty(currentFile.Path));
 
-            // Split path into components
-            string drive = Path.GetPathRoot(currentFile.Path);
-            string directory = Path.GetDirectoryName(currentFile.Path);
+            // Set drive to always "C:\"
+            string drive = "C:\\";
+
+            // Get the directory without the root
+            string directory = Path.GetDirectoryName(currentFile.Path) ?? string.Empty;
+
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                // Remove the drive root (e.g., "C:\") from the directory
+                var root = Path.GetPathRoot(currentFile.Path);
+                if (!string.IsNullOrEmpty(root) && directory.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+                {
+                    directory = directory[root.Length..];
+                }
+            }
+            else
+            {
+                // On Unix-based systems, remove the leading forward slash
+                if (directory.StartsWith(Path.DirectorySeparatorChar.ToString()))
+                {
+                    directory = directory[1..];
+                }
+            }
+
+            // **Normalize directory separators from '/' to '\\'**
+            directory = directory.Replace('/', '\\');
+
             string fileName = Path.GetFileNameWithoutExtension(currentFile.Path);
             string extension = Path.GetExtension(currentFile.Path);
 
@@ -146,8 +170,11 @@ public sealed class DfsWriter : IDisposable
 
                         dataFileStream.Dispose();
 
-                        _checksumTable.AddRange(_checkSummer.ToUInt16Array());
-                        _checkSummer = new CheckSummer((uint)_chunkSize);
+                        if (_enableCrc)
+                        {
+                            _checksumTable.AddRange(_checkSummer.ToUInt16Array());
+                            _checkSummer = new CheckSummer((uint)_chunkSize);
+                        }
 
                         // Update data file number
                         dataFilesCount++;
@@ -195,7 +222,10 @@ public sealed class DfsWriter : IDisposable
 
                     int bytesRead = fileStream.Read(buffer, 0, bytesToCopy);
                     dataFileStream.Write(buffer, 0, bytesRead);
-                    _checkSummer.ApplyData(buffer, bytesRead);
+                    if (_enableCrc)
+                    {
+                        _checkSummer.ApplyData(buffer, bytesRead);
+                    }
                     fileBytesLeft -= bytesRead;
                     dataPosition += bytesRead;
                     _currentDataFileOffset += bytesRead;
@@ -215,8 +245,11 @@ public sealed class DfsWriter : IDisposable
 
             dataFileStream.Dispose();
 
-            _checksumTable.AddRange(_checkSummer.ToUInt16Array());
-            _checkSummer = new CheckSummer((uint)_chunkSize);
+            if (_enableCrc)
+            {
+                _checksumTable.AddRange(_checkSummer.ToUInt16Array());
+                _checkSummer = new CheckSummer((uint)_chunkSize);
+            }
 
             // Update data file number
             dataFilesCount++;
