@@ -42,3 +42,6 @@ msbuild.log
 msbuild.err
 msbuild.wrn
 file-test
+*.000
+*.DFS
+dfs/RESOURCE

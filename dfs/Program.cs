@@ -70,7 +70,18 @@ static bool CreateCommand(string[] args)
             File.Delete(splitFile);
         }
     }
-    var sourceFiles = Directory.GetFiles(inputDir, "*", SearchOption.AllDirectories);
+    var sourceFiles = Directory.GetFiles(Path.GetFullPath(inputDir), "*", SearchOption.AllDirectories).Select(path => new
+    {
+        FullPath = path,
+        FileName = Path.GetFileNameWithoutExtension(path),
+        Extension = Path.GetExtension(path),
+        Directory = Path.GetDirectoryName(path)
+    })
+            .OrderBy(f => f.Directory)
+            .ThenBy(f => Path.GetExtension(f.FileName)) // Sort by any extension in the filename itself
+            .ThenBy(f => f.FileName)
+            .ThenBy(f => f.Extension)
+            .Select(f => f.FullPath);
     using var writer = new DfsWriter(outputFileName, sourceFiles, sectorAligned, enableCrc: enableCrc);
     writer.Write();
     return true;

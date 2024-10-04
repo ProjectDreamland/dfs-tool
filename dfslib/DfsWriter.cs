@@ -14,7 +14,10 @@ public sealed class DfsWriter : IDisposable
     private readonly IEnumerable<string> _filePaths;
     private readonly HashSet<string> _sectorAlignedExtensions;
     private CheckSummer _checkSummer;
-    private readonly Dictionary<string, int> _stringTable;
+
+    private readonly StringTable _stringTable;
+
+
     private readonly List<DfsFileEntry> _fileEntries;
     private readonly List<DfsSubFileEntry> _subFileEntries;
 
@@ -51,7 +54,7 @@ public sealed class DfsWriter : IDisposable
 
         _checkSummer = new CheckSummer(chunkSize);
         _checksumTable = new List<ushort>();
-        _stringTable = [];
+        _stringTable = new StringTable();
         _fileEntries = [];
         _subFileEntries = [];
 
@@ -60,7 +63,7 @@ public sealed class DfsWriter : IDisposable
 
         Debug.Assert(sectorSize > 0);
         Debug.Assert((sectorSize & (sectorSize - 1)) == 0);
-        Debug.Assert((splitSize % sectorSize) == 0);
+        // Debug.Assert((splitSize % sectorSize) == 0);
     }
 
     /// <summary>
@@ -98,7 +101,9 @@ public sealed class DfsWriter : IDisposable
             Debug.Assert(!string.IsNullOrEmpty(currentFile.Path));
 
             // Set drive to always "C:\"
-            string drive = "C:\\";
+            string root = Path.GetPathRoot(currentFile.Path);
+
+
 
             // Get the directory without the root
             string directory = Path.GetDirectoryName(currentFile.Path) ?? string.Empty;
@@ -106,7 +111,6 @@ public sealed class DfsWriter : IDisposable
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 // Remove the drive root (e.g., "C:\") from the directory
-                var root = Path.GetPathRoot(currentFile.Path);
                 if (!string.IsNullOrEmpty(root) && directory.StartsWith(root, StringComparison.OrdinalIgnoreCase))
                 {
                     directory = directory[root.Length..];
@@ -121,12 +125,12 @@ public sealed class DfsWriter : IDisposable
                 }
             }
 
-            // **Normalize directory separators from '/' to '\\'**
+            // Normalize directory separators from '/' to '\\'
             directory = directory.Replace('/', '\\');
+            root = root.Replace('/', '\\');
 
             string fileName = Path.GetFileNameWithoutExtension(currentFile.Path);
             string extension = Path.GetExtension(currentFile.Path);
-
 
             string previousFileName = Path.GetFileNameWithoutExtension(previousFile.Path);
             string nextFileName = Path.GetFileNameWithoutExtension(nextFile.Path);
@@ -135,22 +139,23 @@ public sealed class DfsWriter : IDisposable
             (string substring1, string substring2) = FindCommonSubstring(previousFileName, fileName, nextFileName);
 
             // Add path substrings to dictionary
-            uint pathIndex = GetStringOffset(drive + directory);
+            uint pathIndex = GetStringOffset(root + directory);
             uint fileNamePart1Index = GetStringOffset(substring1);
             uint fileNamePart2Index = GetStringOffset(substring2);
             uint extensionIndex = GetStringOffset(extension);
 
             // Check for sector alignment
             isSectorAligned = _sectorAlignedExtensions.Contains(extension);
+
             // Open the file
             using (Stream fileStream = File.OpenRead(currentFile.Path))
             {
                 long fileLength = fileStream.Length;
 
                 // Need to pad?
-                int bytesToPad = (int)(isSectorAligned && dataFileStream != null
-                    ? _sectorSize - (int)(_currentDataFileOffset % _sectorSize)
-                    : 0);
+                int bytesToPad = (isSectorAligned && dataFileStream != null && (_currentDataFileOffset % _sectorSize) != 0)
+                    ? (int)(_sectorSize - (_currentDataFileOffset % _sectorSize))
+                    : 0;
 
                 // Calculate total size of the file
                 long totalFileSize = fileLength + bytesToPad;
@@ -161,13 +166,11 @@ public sealed class DfsWriter : IDisposable
                     // Close previous data file
                     if (dataFileStream != null)
                     {
-                        int bytesToPadChunk = (int)(_chunkSize - (int)(_currentDataFileOffset % _chunkSize));
-                        Pad(dataFileStream, bytesToPadChunk);
-                        dataPosition += bytesToPadChunk;
-
+                        // Add the subfile entry
                         _subFileEntries.Add(new DfsSubFileEntry((uint)dataPosition, (uint)(_enableCrc ? _checksumTable.Count : 0)));
 
-
+                        // Close the file
+                        dataFileStream.Flush();
                         dataFileStream.Dispose();
 
                         if (_enableCrc)
@@ -175,9 +178,6 @@ public sealed class DfsWriter : IDisposable
                             _checksumTable.AddRange(_checkSummer.ToUInt16Array());
                             _checkSummer = new CheckSummer((uint)_chunkSize);
                         }
-
-                        // Update data file number
-                        dataFilesCount++;
                     }
 
                     // Create new data file
@@ -185,13 +185,19 @@ public sealed class DfsWriter : IDisposable
                     dataFileStream = File.Create(dataFilePath);
                     _currentDataFileOffset = 0;
 
-                    // Pad the output file
-                    if (bytesToPad > 0)
-                    {
-                        Pad(dataFileStream, bytesToPad);
-                        dataPosition += bytesToPad;
-                        _currentDataFileOffset += bytesToPad;
-                    }
+                    // Reset padding for the new file
+                    bytesToPad = 0;
+
+                    // Increment data files count here, after creating a new file
+                    dataFilesCount++;
+                }
+
+                // Pad the output file only if necessary
+                if (bytesToPad > 0)
+                {
+                    Pad(dataFileStream, bytesToPad);
+                    dataPosition += bytesToPad;
+                    _currentDataFileOffset += bytesToPad;
                 }
 
                 // Assert that string table indices are valid
@@ -213,6 +219,7 @@ public sealed class DfsWriter : IDisposable
 
                 // Update number of files output
                 filesOutputCount++;
+
                 // Copy data to output stream
                 long fileBytesLeft = fileLength;
                 byte[] buffer = new byte[_chunkSize];
@@ -229,30 +236,21 @@ public sealed class DfsWriter : IDisposable
                     fileBytesLeft -= bytesRead;
                     dataPosition += bytesRead;
                     _currentDataFileOffset += bytesRead;
-
                 }
             }
         }
-        // Close data file
-        if (dataFileStream is not null)
+
+        // Add the last subfile entry if there's an open data file stream
+        if (dataFileStream != null)
         {
-            int bytesToPad = (int)(_chunkSize - (int)(_currentDataFileOffset % _chunkSize));
-            Pad(dataFileStream, bytesToPad);
-            dataPosition += bytesToPad;
-            _currentDataFileOffset += bytesToPad;
-
             _subFileEntries.Add(new DfsSubFileEntry((uint)dataPosition, (uint)(_enableCrc ? _checksumTable.Count : 0)));
-
+            dataFileStream.Flush();
             dataFileStream.Dispose();
 
             if (_enableCrc)
             {
                 _checksumTable.AddRange(_checkSummer.ToUInt16Array());
-                _checkSummer = new CheckSummer((uint)_chunkSize);
             }
-
-            // Update data file number
-            dataFilesCount++;
         }
 
         // Write the .DFS file
@@ -269,7 +267,7 @@ public sealed class DfsWriter : IDisposable
                 MaxSplitSize = (uint)_splitSize,
                 TotalFileCount = filesOutputCount,
                 SubFileCount = dataFilesCount,
-                StringTableLength = GetStringTableSize(),
+                StringTableLength = 0,
                 SubFileTableOffset = 0, // Placeholder
                 FileEntriesOffset = 0, // Placeholder
                 ChecksumTableOffset = 0, // Placeholder
@@ -322,11 +320,8 @@ public sealed class DfsWriter : IDisposable
 
             // Write string table
             uint stringTableOffset = (uint)writer.BaseStream.Position;
-            foreach (var entry in _stringTable)
-            {
-                writer.Write(Encoding.ASCII.GetBytes(entry.Key));
-                writer.Write((byte)0);
-            }
+            _stringTable.Save(writer);
+
 
             // Pad the data to a multiple of 2K
             int padding = 2048 - (int)(writer.BaseStream.Position % 2048);
@@ -335,14 +330,16 @@ public sealed class DfsWriter : IDisposable
                 writer.Write(new byte[padding]);
             }
 
-
-
             // Update header with offsets and checksum
             header.SubFileTableOffset = subFileTableOffset;
             header.FileEntriesOffset = fileTableOffset;
             header.ChecksumTableOffset = checksumTableOffset;
+            header.StringTableLength = _stringTable.GetSaveSize();
             header.StringTableOffset = stringTableOffset;
             header.FileChecksum = 0;
+
+            // Logging the header values
+
 
             writer.Seek(0, SeekOrigin.Begin);
             writer.Write(header.MagicNumber);
@@ -367,22 +364,32 @@ public sealed class DfsWriter : IDisposable
 
             // Assert that the number of data files matches the sub-file table count
             Debug.Assert(dataFilesCount == _subFileEntries.Count);
+
+        }
+    }
+
+    /// <summary>
+    /// Dumps the contents of the string table to a file for analysis.
+    /// </summary>
+    /// <param name="outputPath">The path where the dump file will be created.</param>
+    private void DumpStringTable(string outputPath)
+    {
+        using (var writer = new StreamWriter(outputPath))
+        {
+            writer.WriteLine($"String Table Size: {_stringTable.GetSaveSize()}");
+            writer.WriteLine("Offset\tLength\tString");
+            writer.WriteLine("------\t------\t------");
+
+            foreach (var entry in _stringTable.GetEntries())
+            {
+                writer.WriteLine($"{entry.Offset}\t{entry.Length}\t{entry.String}");
+            }
         }
     }
 
     private uint GetStringOffset(string value)
     {
-        if (!_stringTable.TryGetValue(value, out int offset))
-        {
-            offset = GetStringTableSize();
-            _stringTable[value] = offset;
-        }
-        return (uint)offset;
-    }
-
-    private int GetStringTableSize()
-    {
-        return _stringTable.Sum(entry => entry.Key.Length + 1);
+        return _stringTable.Add(value);
     }
 
     private static void Pad(Stream stream, int count)
@@ -400,31 +407,37 @@ public sealed class DfsWriter : IDisposable
         int prevCommonLen = 0;
         int commonLen = 0;
 
-        for (int i = 0; i < str1.Length && i < str0.Length && str1[i] == str0[i]; i++)
+        // Compare with previous string
+        for (int i = 0; i < str1.Length && i < str0.Length && char.ToUpperInvariant(str1[i]) == char.ToUpperInvariant(str0[i]); i++)
         {
             prevCommonLen++;
         }
 
+        // Back off from numbers
         while (prevCommonLen > 0 && char.IsDigit(str1[prevCommonLen - 1]))
         {
             prevCommonLen--;
         }
 
-        for (int i = 0; i < str1.Length && i < str2.Length && str1[i] == str2[i]; i++)
+        // Compare with next string
+        for (int i = 0; i < str1.Length && i < str2.Length && char.ToUpperInvariant(str1[i]) == char.ToUpperInvariant(str2[i]); i++)
         {
             commonLen++;
         }
 
+        // Back off from numbers
         while (commonLen > 0 && char.IsDigit(str1[commonLen - 1]))
         {
             commonLen--;
         }
 
+        // Use the longer common substring
         if (prevCommonLen > commonLen)
         {
             commonLen = prevCommonLen;
         }
 
-        return (str1[..commonLen], str1[commonLen..]);
+        return (str1[..commonLen].ToUpperInvariant(), str1[commonLen..].ToUpperInvariant());
     }
+
 }

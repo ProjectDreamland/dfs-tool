@@ -31,6 +31,7 @@ public sealed class DfsReader : IDisposable
         _stream = stream;
         _reader = new BinaryReader(stream);
         _header = ReadHeader();
+
         _fileEntriesCache = CacheFileEntries();
         (_subFileStreams, _subFileReaders) = OpenSubFileStreams();
     }
@@ -112,6 +113,28 @@ public sealed class DfsReader : IDisposable
 
         return rentedArray;
     }
+    /// <summary>
+    /// Dumps the contents of the string table to a file for analysis.
+    /// </summary>
+    /// <param name="outputPath">The path where the dump file will be created.</param>
+    private void DumpStringTable(string outputPath)
+    {
+        using (var writer = new StreamWriter(outputPath))
+        {
+            writer.WriteLine($"String Table Size: {_header.StringTableLength}");
+            writer.WriteLine("Offset\tLength\tString");
+            writer.WriteLine("------\t------\t------");
+
+            uint offset = 0;
+            while (offset < _header.StringTableLength)
+            {
+                string str = ReadStringFromTable(_header.StringTableOffset, offset);
+                writer.WriteLine($"{offset}\t{str.Length}\t{str}");
+                offset += (uint)(str.Length + 1); // +1 for null terminator
+            }
+        }
+    }
+
 
     /// <summary>
     /// Gets the data of a specified file from the DFS archive.
