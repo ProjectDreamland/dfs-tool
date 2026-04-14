@@ -31,7 +31,7 @@ static void PrintHelp()
 {
     Console.WriteLine("Usage: dfs <command> [options]");
     Console.WriteLine("Commands:");
-    Console.WriteLine("  create <inputDir> <outputFileName> [--crc]    Creates a DFS file from the specified directory with optional CRC.");
+    Console.WriteLine("  create <inputDir> <outputFileName> [--crc] [--base-path <path>]    Creates a DFS file from the specified directory with optional CRC and base path.");
     Console.WriteLine("  extract <inputFile> <extractPath>             Extracts files from the specified DFS file to the specified path.");
     Console.WriteLine("  verify <inputFile>                            Verifies the integrity of the specified DFS file.");
     Console.WriteLine("  list <inputFile>                              Lists the contents of the specified DFS file.");
@@ -60,8 +60,26 @@ static bool CreateCommand(string[] args)
         return false;
     }
 
-    bool enableCrc = args.Length > 3 && args[3] == "--crc";
-    Console.WriteLine($"Creating DFS file {outputFileName} from {inputDir} with {(enableCrc ? "CRC" : "no CRC")}...");
+    bool enableCrc = false;
+    string? basePath = null;
+    for (int i = 3; i < args.Length; i++)
+    {
+        if (args[i] == "--crc")
+        {
+            enableCrc = true;
+        }
+        else if (args[i] == "--base-path")
+        {
+            if (i + 1 >= args.Length)
+            {
+                Console.Error.WriteLine("--base-path requires a value");
+                return false;
+            }
+            basePath = args[++i];
+        }
+    }
+
+    Console.WriteLine($"Creating DFS file {outputFileName} from {inputDir} with {(enableCrc ? "CRC" : "no CRC")}{(basePath != null ? $" and base path '{basePath}'" : "")}...");
     if (File.Exists(outputFileName))
     {
         File.Delete(outputFileName);
@@ -82,7 +100,7 @@ static bool CreateCommand(string[] args)
             .ThenBy(f => f.FileName)
             .ThenBy(f => f.Extension)
             .Select(f => f.FullPath);
-    using var writer = new DfsWriter(outputFileName, sourceFiles, sectorAligned, enableCrc: enableCrc);
+    using var writer = new DfsWriter(outputFileName, sourceFiles, sectorAligned, enableCrc: enableCrc, basePath: basePath);
     writer.Write();
     return true;
 }

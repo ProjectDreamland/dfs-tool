@@ -33,9 +33,33 @@ dotnet build
 ```bash
 Usage: dfs <command> [options]
 Commands:
-  create <inputDir> <outputFileName> [--crc]    Creates a DFS file from the specified directory with optional CRC.
+  create <inputDir> <outputFileName> [--crc] [--base-path <path>]    Creates a DFS file from the specified directory with optional CRC and base path.
   extract <inputFile> <extractPath>             Extracts files from the specified DFS file to the specified path.
   verify <inputFile>                            Verifies the integrity of the specified DFS file.
   list <inputFile>                              Lists the contents of the specified DFS file.
   help                                          Displays this help text.
 ```
+
+### Remastering Area 51 assets
+
+The original Area 51 DFS archives store an absolute Windows path (e.g. `C:\GAMEDATA\A51\RELEASE\PC\`) for every file. The game uses this path to locate assets inside the archive, so the packed archive must use the same path.
+
+To repack a modified archive while preserving the original path:
+
+1. Find the base path stored in the original archive:
+   ```bash
+   dfs list <original.dfs>
+   ```
+   The path shown before each filename is the base path (e.g. `C:\GAMEDATA\A51\RELEASE\PC\`).
+
+2. Extract the original archive:
+   ```bash
+   dfs extract <original.dfs> <outputDir>
+   ```
+
+3. Replace or modify the files in `<outputDir>`.
+
+4. Repack with the original base path:
+   ```bash
+   dfs create <outputDir> <repacked.dfs> --base-path "C:\GAMEDATA\A51\RELEASE\PC\"
+   ```
