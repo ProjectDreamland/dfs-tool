@@ -14,6 +14,7 @@ public sealed class DfsWriter : IDisposable
     private readonly IEnumerable<string> _filePaths;
     private readonly HashSet<string> _sectorAlignedExtensions;
     private CheckSummer _checkSummer;
+    private readonly string? _basePath;
 
     private readonly StringTable _stringTable;
 
@@ -42,11 +43,13 @@ public sealed class DfsWriter : IDisposable
     /// <param name="splitSize">The split size to use for the DFS archive.</param>
     /// <param name="chunkSize">The chunk size to use for the DFS archive.</param>
     /// <param name="enableCrc">Whether to enable CRC checksums for the DFS archive.</param>
-    public DfsWriter(string outputPath, IEnumerable<string> filePaths, IEnumerable<string> sectorAlignedExtensions, uint sectorSize = DfsConstants.DefaultSectorSize, uint splitSize = DfsConstants.DefaultSplitSize, uint chunkSize = DfsConstants.DefaultChunkSize, bool enableCrc = false)
+    /// <param name="basePath">Optional base path to store for all files in the archive (e.g. "C:\GAMEDATA\A51\RELEASE\PC\"). When provided, overrides the path derived from the actual file location.</param>
+    public DfsWriter(string outputPath, IEnumerable<string> filePaths, IEnumerable<string> sectorAlignedExtensions, uint sectorSize = DfsConstants.DefaultSectorSize, uint splitSize = DfsConstants.DefaultSplitSize, uint chunkSize = DfsConstants.DefaultChunkSize, bool enableCrc = false, string? basePath = null)
     {
         _outputPath = outputPath;
         _filePaths = filePaths;
         _sectorAlignedExtensions = new HashSet<string>(sectorAlignedExtensions, StringComparer.OrdinalIgnoreCase);
+        _basePath = basePath != null ? NormalizeBasePath(basePath) : null;
         _sectorSize = sectorSize;
         _splitSize = splitSize;
         _enableCrc = enableCrc;
@@ -100,34 +103,42 @@ public sealed class DfsWriter : IDisposable
             // Assert that currentFile.Path is not empty
             Debug.Assert(!string.IsNullOrEmpty(currentFile.Path));
 
-            // Set drive to always "C:\"
-            string root = Path.GetPathRoot(currentFile.Path);
-
-
-
-            // Get the directory without the root
-            string directory = Path.GetDirectoryName(currentFile.Path) ?? string.Empty;
-
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            string pathForEntry;
+            if (_basePath != null)
             {
-                // Remove the drive root (e.g., "C:\") from the directory
-                if (!string.IsNullOrEmpty(root) && directory.StartsWith(root, StringComparison.OrdinalIgnoreCase))
-                {
-                    directory = directory[root.Length..];
-                }
+                // Use the user-specified base path for all files
+                pathForEntry = _basePath;
             }
             else
             {
-                // On Unix-based systems, remove the leading forward slash
-                if (directory.StartsWith(Path.DirectorySeparatorChar.ToString()))
-                {
-                    directory = directory[1..];
-                }
-            }
+                // Set drive to always "C:\"
+                string root = Path.GetPathRoot(currentFile.Path);
 
-            // Normalize directory separators from '/' to '\\'
-            directory = directory.Replace('/', '\\');
-            root = root.Replace('/', '\\');
+                // Get the directory without the root
+                string directory = Path.GetDirectoryName(currentFile.Path) ?? string.Empty;
+
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                {
+                    // Remove the drive root (e.g., "C:\") from the directory
+                    if (!string.IsNullOrEmpty(root) && directory.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+                    {
+                        directory = directory[root.Length..];
+                    }
+                }
+                else
+                {
+                    // On Unix-based systems, remove the leading forward slash
+                    if (directory.StartsWith(Path.DirectorySeparatorChar.ToString()))
+                    {
+                        directory = directory[1..];
+                    }
+                }
+
+                // Normalize directory separators from '/' to '\\'
+                directory = directory.Replace('/', '\\');
+                root = root.Replace('/', '\\');
+                pathForEntry = root + directory;
+            }
 
             string fileName = Path.GetFileNameWithoutExtension(currentFile.Path);
             string extension = Path.GetExtension(currentFile.Path);
@@ -139,7 +150,7 @@ public sealed class DfsWriter : IDisposable
             (string substring1, string substring2) = FindCommonSubstring(previousFileName, fileName, nextFileName);
 
             // Add path substrings to dictionary
-            uint pathIndex = GetStringOffset(root + directory);
+            uint pathIndex = GetStringOffset(pathForEntry);
             uint fileNamePart1Index = GetStringOffset(substring1);
             uint fileNamePart2Index = GetStringOffset(substring2);
             uint extensionIndex = GetStringOffset(extension);
@@ -438,6 +449,19 @@ public sealed class DfsWriter : IDisposable
         }
 
         return (str1[..commonLen].ToUpperInvariant(), str1[commonLen..].ToUpperInvariant());
+    }
+
+    /// <summary>
+    /// Normalizes a base path by replacing forward slashes with backslashes and ensuring it ends with a backslash.
+    /// </summary>
+    private static string NormalizeBasePath(string basePath)
+    {
+        basePath = basePath.Replace('/', '\\');
+        if (!basePath.EndsWith('\\'))
+        {
+            basePath += '\\';
+        }
+        return basePath;
     }
 
 }
